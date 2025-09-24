@@ -13,7 +13,7 @@ function App() {
       withCredentials: true // required for cookies if used
     })
     .then(res => setMessage(res.data.message))
-    .catch(err => setMessage('❌ Error: ' + err.message));
+    .catch(err => setMessage(' Error: ' + err.message));
   }, []);
 
   return (
