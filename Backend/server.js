@@ -6,9 +6,12 @@ const mongoose = require('mongoose');
 const PORT = process.env.PORT || 5000;
 const MONGO = process.env.MONGO_URI || 'mongodb://localhost:27017/payments_portal';
 
-mongoose.connect(MONGO, { useNewUrlParser: true, useUnifiedTopology: true })
+// Connect to MongoDB
+mongoose.connect(MONGO)
   .then(() => {
     console.log('MongoDB connected');
+
+    // Start the server
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   })
   .catch(err => {
