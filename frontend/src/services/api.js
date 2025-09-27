@@ -2,7 +2,7 @@ import axios from "axios";
 
 // Create axios instance with secure defaults
 const API = axios.create({
-baseURL: process.env.REACT_APP_API_URL || "http://localhost:5000/api",// Use HTTPS in production
+baseURL: process.env.REACT_APP_API_URL || "https://localhost:5000/api",// Use HTTPS in production
   withCredentials: true, // Important: sends HTTP-only cookies
   timeout: 10000, // 10 second timeout
   headers: {
