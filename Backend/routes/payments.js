@@ -1,16 +1,10 @@
-// routes/payments.js
 const express = require('express');
 const router = express.Router();
-const Payment = require('../models/Payment');
+const authMiddleware = require('../middleware/authMiddleware');
+const { createPayment, getUserPayments } = require('../controllers/paymentController');
 
-// Example: get all payments
-router.get('/', async (req, res) => {
-  try {
-    const payments = await Payment.find();
-    res.json(payments);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
+// All payment routes should require authentication
+router.post('/', authMiddleware, createPayment);
+router.get('/', authMiddleware, getUserPayments);
 
 module.exports = router;

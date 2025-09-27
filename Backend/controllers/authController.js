@@ -132,17 +132,19 @@ exports.login = async (req, res) => {
       path: '/'
     };
     
-    res.cookie('token', token, cookieOptions);
-    
-    return res.json({ 
-      message: 'Login successful.',
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        accountNumber: user.accountNumber
-      }
-    });
+   res.cookie('token', token, cookieOptions); // optional for frontend testing
+
+return res.json({ 
+  message: 'Login successful.',
+  token,   // <-- add this line
+  user: {
+    id: user._id,
+    fullName: user.fullName,
+    email: user.email,
+    accountNumber: user.accountNumber
+  }
+});
+
   } catch (err) {
     console.error('Login error:', err);
     return res.status(500).json({ error: 'Internal server error.' });
