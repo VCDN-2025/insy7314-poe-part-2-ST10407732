@@ -4,39 +4,44 @@ const PaymentSchema = new mongoose.Schema({
   user: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: true 
+    required: true,
+    index: true
   },
   amount: { 
     type: Number, 
     required: true,
-    min: 0,
+    min: 0.01,
     max: 1000000000
   },
   currency: {
     type: String,
     required: true,
     uppercase: true,
+    trim: true,
     match: /^[A-Z]{3}$/ // 3-letter ISO currency code
   },
   provider: {
     type: String,
     required: true,
+    trim: true,
     match: /^[A-Za-z\s]{2,50}$/
   },
   payeeAccount: {
     type: String,
     required: true,
+    trim: true,
     match: /^\d{6,20}$/
   },
   swiftCode: {
     type: String,
     required: true,
     uppercase: true,
+    trim: true,
     match: /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/
   },
   status: { 
     type: String, 
-    enum: ['pending', 'approved', 'rejected', 'completed'],
+    enum: ['pending', 'processing', 'completed', 'failed'],
     default: 'pending' 
   },
   verifiedBy: {
@@ -50,7 +55,7 @@ const PaymentSchema = new mongoose.Schema({
   timestamps: true 
 });
 
-// Index for faster queries
+// Index for better query performance
 PaymentSchema.index({ user: 1, createdAt: -1 });
 PaymentSchema.index({ status: 1 });
 

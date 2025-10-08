@@ -11,7 +11,6 @@ function PaymentPage() {
     currency: "USD",
     provider: "SWIFT",
     payeeAccount: "",
-    payeeName: "",
     swiftCode: ""
   });
   
@@ -43,14 +42,10 @@ function PaymentPage() {
       // Only allow digits, max 20
       sanitizedValue = value.replace(/\D/g, '');
       if (sanitizedValue.length > 20) return;
-    } else if (name === 'swift') {
+    } else if (name === 'swiftCode') {
       // Only allow uppercase letters and numbers, max 11
       sanitizedValue = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (sanitizedValue.length > 11) return;
-    } else if (name === 'payeeName') {
-      // Only allow letters, spaces, and common name characters
-      sanitizedValue = value.replace(/[^A-Za-z ,.'-]/g, '');
-      if (sanitizedValue.length > 100) return;
     } else if (name === 'currency') {
       sanitizedValue = value.toUpperCase();
     }
@@ -59,7 +54,7 @@ function PaymentPage() {
   };
 
   const validateForm = () => {
-    const { amount, currency, payeeAccount, payeeName, swift } = form;
+    const { amount, currency, payeeAccount, swiftCode } = form;
     
     // Amount validation
     const amountNum = parseFloat(amount);
@@ -68,20 +63,14 @@ function PaymentPage() {
       return false;
     }
     
-    if (amountNum > 1000000) {
-      setError("Amount exceeds maximum limit of 1,000,000");
+    if (amountNum > 1000000000) {
+      setError("Amount exceeds maximum limit of 1,000,000,000");
       return false;
     }
     
     // Currency validation (3 uppercase letters)
     if (!/^[A-Z]{3}$/.test(currency)) {
       setError("Invalid currency code");
-      return false;
-    }
-    
-    // Payee name validation
-    if (!payeeName || payeeName.length < 2) {
-      setError("Payee name must be at least 2 characters");
       return false;
     }
     
@@ -92,8 +81,9 @@ function PaymentPage() {
     }
     
     // SWIFT code validation (8-11 characters)
-    if (!/^[A-Z0-9]{8,11}$/.test(swift)) {
-      setError("SWIFT code must be 8-11 uppercase letters/numbers");
+    const swiftPattern = /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/;
+    if (!swiftPattern.test(swiftCode)) {
+      setError("SWIFT code must be 8 or 11 characters (e.g., ABCDZAJJ)");
       return false;
     }
     
@@ -115,29 +105,24 @@ function PaymentPage() {
       const paymentData = {
         amount: parseFloat(form.amount),
         currency: form.currency,
+        provider: form.provider,
         payeeAccount: form.payeeAccount,
-        swift: form.swift
+        swiftCode: form.swiftCode
       };
+      
+      console.log("Submitting payment:", paymentData);
       
       const response = await createPayment(paymentData);
       
       setSuccess("Payment successfully created! Payment ID: " + response.data.paymentId);
       setError("");
       
-      // Reset form after successful payment
+      // Redirect to payments page after 2 seconds
       setTimeout(() => {
-        setForm({
-          amount: "",
-          currency: "USD",
-          provider: "SWIFT",
-          payeeAccount: "",
-          payeeName: "",
-          swift: ""
-        });
-        setSuccess("");
-        navigate("/dashboard");
-      }, 3000);
+        navigate("/payments");
+      }, 2000);
     } catch (err) {
+      console.error("Payment error:", err);
       setError(err.response?.data?.error || "Payment failed. Please try again.");
       setSuccess("");
     } finally {
@@ -194,7 +179,8 @@ function PaymentPage() {
                 border: '2px solid #3498db',
                 borderRadius: '4px',
                 fontSize: '1.1rem',
-                fontWeight: 'bold'
+                fontWeight: 'bold',
+                boxSizing: 'border-box'
               }}
               placeholder="0.00"
             />
@@ -225,7 +211,9 @@ function PaymentPage() {
                 border: '1px solid #ddd',
                 borderRadius: '4px',
                 fontSize: '1rem',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                boxSizing: 'border-box',
+                backgroundColor: 'white'
               }}
             >
               {currencies.map(curr => (
@@ -259,7 +247,9 @@ function PaymentPage() {
                 border: '1px solid #ddd',
                 borderRadius: '4px',
                 fontSize: '1rem',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                boxSizing: 'border-box',
+                backgroundColor: 'white'
               }}
             >
               <option value="SWIFT">SWIFT</option>
@@ -280,36 +270,8 @@ function PaymentPage() {
               marginBottom: '1rem',
               fontSize: '1.2rem'
             }}>
-              Payee Information
+              Account Information
             </h3>
-
-            {/* Payee Name */}
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: '0.5rem', 
-                fontWeight: 'bold',
-                color: '#2c3e50'
-              }}>
-                Payee Name: *
-              </label>
-              <input 
-                name="payeeName" 
-                type="text"
-                value={form.payeeName} 
-                onChange={handleChange}
-                required 
-                disabled={loading}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  fontSize: '1rem'
-                }}
-                placeholder="Recipient's full name"
-              />
-            </div>
 
             {/* Payee Account */}
             <div style={{ marginBottom: '1rem' }}>
@@ -333,11 +295,15 @@ function PaymentPage() {
                   padding: '0.75rem',
                   border: '1px solid #ddd',
                   borderRadius: '4px',
-                  fontSize: '1rem'
+                  fontSize: '1rem',
+                  boxSizing: 'border-box'
                 }}
                 placeholder="6-20 digit account number"
                 maxLength="20"
               />
+              <small style={{ color: '#7f8c8d', fontSize: '0.85rem' }}>
+                Must be 6-20 digits only
+              </small>
             </div>
 
             {/* SWIFT Code */}
@@ -351,9 +317,9 @@ function PaymentPage() {
                 SWIFT Code: *
               </label>
               <input 
-                name="swift" 
+                name="swiftCode" 
                 type="text"
-                value={form.swift} 
+                value={form.swiftCode} 
                 onChange={handleChange}
                 required 
                 disabled={loading}
@@ -363,7 +329,8 @@ function PaymentPage() {
                   border: '1px solid #ddd',
                   borderRadius: '4px',
                   fontSize: '1rem',
-                  textTransform: 'uppercase'
+                  textTransform: 'uppercase',
+                  boxSizing: 'border-box'
                 }}
                 placeholder="8-11 character SWIFT code"
                 maxLength="11"
@@ -395,7 +362,7 @@ function PaymentPage() {
             style={{
               width: '100%',
               padding: '1rem',
-              backgroundColor: loading ? '#95a5a6' : '#e67e22',
+              backgroundColor: loading ? '#95a5a6' : '#27ae60',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
