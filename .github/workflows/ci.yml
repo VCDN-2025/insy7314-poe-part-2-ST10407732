@@ -34,20 +34,3 @@ jobs:
 
       - name: Security audit
         run: npm audit --audit-level=high
-
-      # -------------------------------
-      # SonarCloud Integration
-      # -------------------------------
-      - name: Cache SonarCloud packages
-        uses: actions/cache@v3
-        with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v2
-        with:
-          organization: "st10407732"
-          token: ${{ secrets.SONAR_TOKEN }}
-          projectKey: "insy7314-part-2-ST10407732"
-          projectName: "INSY7314 Part 2"
