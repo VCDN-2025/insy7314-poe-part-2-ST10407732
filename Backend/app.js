@@ -1,73 +1,95 @@
-// app.js
+require('dotenv').config();
 const express = require('express');
-const helmet = require('helmet');
-const cors = require('cors');
+const mongoose = require('mongoose');
 const cookieParser = require('cookie-parser');
+const cors = require('cors');
+const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
+const rateLimit = require('express-rate-limit');
 
-const authRoutes = require('./routes/auth');      // your auth routes
-const paymentRoutes = require('./routes/payments'); // your payment routes
+const authRoutes = require('./routes/authRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const authMiddleware = require('./middleware/authMiddleware');
 
 const app = express();
 
-// ---------------------
-// Security headers
-// ---------------------
+// Security middleware
 app.use(helmet());
-app.use(
-  helmet.contentSecurityPolicy({
-    useDefaults: true,
-    directives: {
-      "default-src": ["'self'"],
-      "script-src": ["'self'"],
-      "object-src": ["'none'"],
-      "img-src": ["'self'", "data:"],
-      "frame-ancestors": ["'none'"]
-    }
-  })
-);
+app.use(mongoSanitize());
 
-// ---------------------
-// Body parser & cookies
-// ---------------------
-app.use(express.json());
-app.use(cookieParser());
-
-// ---------------------
-// Safe Mongo Sanitize
-// ---------------------
-// Only sanitize req.body and req.params to prevent the "Cannot set property query" error
-app.use((req, res, next) => {
-  if (req.body) req.body = mongoSanitize.sanitize(req.body);
-  if (req.params) req.params = mongoSanitize.sanitize(req.params);
-  next();
-});
-
-// ---------------------
-// CORS
-// ---------------------
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+// CORS configuration
 app.use(cors({
-  origin: FRONTEND_URL,
-  credentials: true
+  origin: process.env.FRONTEND_URL || 'https://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// ---------------------
+// Body parser
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(cookieParser());
+
+// Global rate limiter
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(limiter);
+
+// Root route
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'International Payments Portal API',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth/*',
+      payments: '/api/payments/*',
+      protected: '/api/protected'
+    }
+  });
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', message: 'Server is running' });
+});
+
 // Routes
-// ---------------------
 app.use('/api/auth', authRoutes);
 app.use('/api/payments', paymentRoutes);
 
-// ---------------------
-// Temporary test route
-// ---------------------
-app.get('/api/protected', (req, res) => {
-  res.json({ message: '✅ Backend is working and reachable!' });
+// Protected route for testing auth
+app.get('/api/protected', authMiddleware, (req, res) => {
+  res.json({ 
+    message: 'Access granted', 
+    user: {
+      id: req.user._id,
+      fullName: req.user.fullName,
+      email: req.user.email,
+      accountNumber: req.user.accountNumber,
+      idNumber: req.user.idNumber,
+      role: req.user.role
+    }
+  });
 });
 
-// ---------------------
-// Root route
-// ---------------------
-app.get('/', (req, res) => res.send('Payments API running'));
+// 404 handler - MUST be last
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Server error:', err);
+  res.status(err.status || 500).json({ 
+    error: err.message || 'Internal server error' 
+  });
+});
 
 module.exports = app;

@@ -30,16 +30,27 @@ function Login() {
     }
     
     try {
+      console.log("Attempting login...");
       const response = await loginUser({ accountNumber, password });
+      console.log("Login response:", response.data);
       
-      // Update parent state
+      // Update state immediately
       setLoggedIn(true);
       setUser(response.data.user);
       
+      // Optionally refresh auth status
+      if (checkAuthStatus) {
+        await checkAuthStatus();
+      }
+      
       // Navigate to dashboard
+      console.log("Navigating to dashboard...");
       navigate("/dashboard");
+      
     } catch (err) {
-      setError(err.response?.data?.error || "Login failed");
+      console.error("Login error:", err);
+      const errorMessage = err.response?.data?.error || "Login failed. Please try again.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -59,9 +70,10 @@ function Login() {
           <label style={{ 
             display: 'block', 
             marginBottom: '0.5rem', 
-            fontWeight: 'bold' 
+            fontWeight: 'bold',
+            color: '#2c3e50'
           }}>
-            Account Number:
+            Account Number *
           </label>
           <input
             type="text"
@@ -78,22 +90,27 @@ function Login() {
             style={{
               width: '100%',
               padding: '0.75rem',
-              border: '1px solid #ddd',
+              border: '2px solid #dfe6e9',
               borderRadius: '4px',
-              fontSize: '1rem'
+              fontSize: '1rem',
+              boxSizing: 'border-box'
             }}
             placeholder="Enter your account number"
             maxLength="20"
           />
+          <small style={{ color: '#7f8c8d', fontSize: '0.85rem' }}>
+            6-20 digits only
+          </small>
         </div>
         
-        <div style={{ marginBottom: '1rem' }}>
+        <div style={{ marginBottom: '1.5rem' }}>
           <label style={{ 
             display: 'block', 
             marginBottom: '0.5rem', 
-            fontWeight: 'bold' 
+            fontWeight: 'bold',
+            color: '#2c3e50'
           }}>
-            Password:
+            Password *
           </label>
           <input
             type="password"
@@ -104,9 +121,10 @@ function Login() {
             style={{
               width: '100%',
               padding: '0.75rem',
-              border: '1px solid #ddd',
+              border: '2px solid #dfe6e9',
               borderRadius: '4px',
-              fontSize: '1rem'
+              fontSize: '1rem',
+              boxSizing: 'border-box'
             }}
             placeholder="Enter your password"
             maxLength="128"
@@ -118,29 +136,32 @@ function Login() {
           disabled={loading}
           style={{
             width: '100%',
-            padding: '0.75rem',
+            padding: '1rem',
             backgroundColor: loading ? '#95a5a6' : '#3498db',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
             fontSize: '1rem',
-            cursor: loading ? 'not-allowed' : 'pointer'
+            fontWeight: 'bold',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            transition: 'background-color 0.3s'
           }}
         >
           {loading ? "Logging in..." : "Login"}
         </button>
         
         {error && (
-          <p style={{ 
-            color: '#e74c3c', 
-            marginTop: '1rem', 
-            textAlign: 'center',
-            backgroundColor: '#fadbd8',
+          <div style={{ 
+            color: '#721c24', 
+            marginTop: '1rem',
+            backgroundColor: '#f8d7da',
+            border: '1px solid #f5c6cb',
             padding: '0.75rem',
-            borderRadius: '4px'
+            borderRadius: '4px',
+            fontSize: '0.9rem'
           }}>
             {error}
-          </p>
+          </div>
         )}
       </form>
     </div>

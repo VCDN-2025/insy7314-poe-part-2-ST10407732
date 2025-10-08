@@ -1,87 +1,97 @@
-import axios from "axios";
+import axios from 'axios';
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-// Create axios instance with secure defaults
-const API = axios.create({
-baseURL: process.env.REACT_APP_API_URL || "https://localhost:5000/api",// Use HTTPS in production
-  withCredentials: true, // Important: sends HTTP-only cookies
-  timeout: 10000, // 10 second timeout
+const API_URL = process.env.REACT_APP_API_URL || 'https://localhost:5000/api';
+
+// Create axios instance with default config
+const api = axios.create({
+  baseURL: API_URL,
+  withCredentials: true, // Send cookies with requests
   headers: {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json'
   }
 });
 
-// Request interceptor for logging and security
-API.interceptors.request.use(
+// Add request interceptor to include token
+api.interceptors.request.use(
   (config) => {
-    console.log(`Making ${config.method.toUpperCase()} request to ${config.url}`);
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => {
-    console.error('Request error:', error);
     return Promise.reject(error);
   }
 );
 
-// Response interceptor for error handling
-API.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+// Add response interceptor for error handling
+api.interceptors.response.use(
+  (response) => response,
   (error) => {
-    console.error('Response error:', error.response?.data || error.message);
-    
-    // Handle specific error cases
     if (error.response?.status === 401) {
-      // Unauthorized - redirect to login might be handled by components
-      console.log('Unauthorized access - token may be expired');
-    } else if (error.response?.status === 423) {
-      // Account locked
-      console.log('Account locked due to failed attempts');
-    } else if (error.response?.status >= 500) {
-      // Server errors
-      console.error('Server error occurred');
+      // Unauthorized - clear token and redirect to login
+      localStorage.removeItem('token');
+      window.location.href = '/login';
     }
-    
     return Promise.reject(error);
   }
 );
 
-// Auth API calls
-export const registerUser = (data) => {
-  // Sanitize data before sending
-  const sanitizedData = {
-    fullName: data.fullName?.trim(),
-    email: data.email?.trim().toLowerCase(),
-    idNumber: data.idNumber?.replace(/\D/g, ''), // Only digits
-    accountNumber: data.accountNumber?.replace(/\D/g, ''), // Only digits
-    password: data.password
-  };
-  
-  return API.post("/auth/register", sanitizedData);
+// Authentication APIs
+export const registerUser = async (userData) => {
+  return api.post('/auth/register', userData);
 };
 
-export const loginUser = (data) => {
-  // Sanitize login data
-  const sanitizedData = {
-    accountNumber: data.accountNumber?.replace(/\D/g, ''), // Only digits
-    password: data.password
-  };
+export const loginUser = async (credentials) => {
+  const response = await api.post('/auth/login', credentials);
   
-  return API.post("/auth/login", sanitizedData);
+  // Store token if returned
+  if (response.data.token) {
+    localStorage.setItem('token', response.data.token);
+  }
+  
+  return response;
 };
 
-export const logoutUser = () => API.post("/auth/logout");
+export const logoutUser = async () => {
+  try {
+    await api.post('/auth/logout');
+  } finally {
+    localStorage.removeItem('token');
+  }
+};
 
-// Protected routes
-export const getProtected = () => API.get("/protected");
+export const checkAuth = async () => {
+  return api.get('/auth/verify');
+};
 
-// Payment API calls (for future use)
-export const createPayment = (data) => API.post("/payments", data);
-export const getPayments = () => API.get("/payments");
-export const getPayment = (id) => API.get(`/payments/${id}`);
+// Payment APIs
+export const createPayment = async (paymentData) => {
+  return api.post('/payments', paymentData);
+};
 
-// User profile API calls (for future use)
-export const getUserProfile = () => API.get("/user/profile");
-export const updateUserProfile = (data) => API.put("/user/profile", data);
+export const getUserPayments = async () => {
+  return api.get('/payments');
+};
 
-export default API;
+export const getPaymentById = async (paymentId) => {
+  return api.get(`/payments/${paymentId}`);
+};
+
+// Employee/Admin APIs (for staff portal)
+export const getAllPayments = async () => {
+  return api.get('/payments/all');
+};
+
+export const verifyPayment = async (paymentId, status) => {
+  return api.put(`/payments/${paymentId}/verify`, { status });
+};
+
+// Protected route test (optional)
+export const getProtected = async () => {
+  return api.get('/protected');
+};
+
+export default api;

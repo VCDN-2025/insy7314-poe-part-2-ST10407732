@@ -22,13 +22,13 @@ const userSchema = new mongoose.Schema({
   idNumber: {
     type: String,
     required: true,
-    unique: true,
+    unique: true,  // This already creates an index
     match: /^\d{13}$/
   },
   accountNumber: {
     type: String,
     required: true,
-    unique: true,
+    unique: true,  // This already creates an index
     match: /^\d{6,20}$/
   },
   passwordHash: {
@@ -62,8 +62,8 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for performance
-userSchema.index({ accountNumber: 1 });
-userSchema.index({ idNumber: 1 });
+// Remove the duplicate index definitions since unique: true already creates them
+// userSchema.index({ accountNumber: 1 });  // REMOVED - duplicate
+// userSchema.index({ idNumber: 1 });       // REMOVED - duplicate
 
 module.exports = mongoose.model('User', userSchema);

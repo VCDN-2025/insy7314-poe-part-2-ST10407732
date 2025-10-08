@@ -1,29 +1,9 @@
-import React, { useState, useEffect } from "react";
-import { Link, Outlet, useNavigate } from "react-router-dom";
-import { getProtected, logoutUser } from "../services/api";
+import React from "react";
+import { Outlet, Link, useNavigate } from "react-router-dom";
+import { logoutUser } from "../services/api";
 
-export default function Layout() {
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState(null);
+function Layout({ loggedIn, user, setLoggedIn, setUser, checkAuthStatus }) {
   const navigate = useNavigate();
-
-  useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  const checkAuthStatus = async () => {
-    try {
-      const response = await getProtected();
-      setLoggedIn(true);
-      setUser(response.data.user);
-    } catch (error) {
-      setLoggedIn(false);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleLogout = async () => {
     try {
@@ -31,63 +11,81 @@ export default function Layout() {
       setLoggedIn(false);
       setUser(null);
       navigate("/");
-    } catch (error) {
-      console.error("Logout error:", error);
-      // Force logout even if API call fails
+    } catch (err) {
+      console.error("Logout error:", err);
+      // Still clear state even if request fails
       setLoggedIn(false);
       setUser(null);
       navigate("/");
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh' 
-      }}>
-        <div>Loading...</div>
-      </div>
-    );
-  }
-
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5' }}>
-      <nav style={{ 
-        backgroundColor: '#2c3e50', 
-        padding: '1rem 2rem', 
-        marginBottom: '20px',
+    <div style={{ minHeight: '100vh', backgroundColor: '#f5f6fa' }}>
+      {/* Header/Navigation */}
+      <nav style={{
+        backgroundColor: '#2c3e50',
+        padding: '1rem 2rem',
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
       }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
+        <div style={{
+          maxWidth: '1200px',
+          margin: '0 auto',
+          display: 'flex',
+          justifyContent: 'space-between',
           alignItems: 'center',
-          color: 'white'
+          flexWrap: 'wrap',
+          gap: '1rem'
         }}>
-          <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
-            SecureBank International
-          </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <Link to="/" style={{ color: 'white', textDecoration: 'none' }}>
-              Home
-            </Link>
-            
+          <Link
+            to="/"
+            style={{
+              color: 'white',
+              textDecoration: 'none',
+              fontSize: '1.5rem',
+              fontWeight: 'bold'
+            }}
+          >
+            🏦 International Payments Portal
+          </Link>
+
+          <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
             {loggedIn ? (
               <>
-                <Link to="/dashboard" style={{ color: 'white', textDecoration: 'none' }}>
+                <Link
+                  to="/dashboard"
+                  style={{
+                    color: 'white',
+                    textDecoration: 'none',
+                    fontSize: '1rem'
+                  }}
+                >
                   Dashboard
                 </Link>
-                <Link to="/payments" style={{ color: 'white', textDecoration: 'none' }}>
-                  International Payments
+                <Link
+                  to="/make-payment"
+                  style={{
+                    color: 'white',
+                    textDecoration: 'none',
+                    fontSize: '1rem'
+                  }}
+                >
+                  Make Payment
                 </Link>
-                <div style={{ color: '#ecf0f1', fontSize: '0.9rem' }}>
-                  Welcome, {user?.fullName}
-                </div>
-                <button 
+                <Link
+                  to="/payments"
+                  style={{
+                    color: 'white',
+                    textDecoration: 'none',
+                    fontSize: '1rem'
+                  }}
+                >
+                  Payment History
+                </Link>
+                <span style={{ color: '#ecf0f1', fontSize: '0.9rem' }}>
+                  {user?.fullName}
+                </span>
+                <button
                   onClick={handleLogout}
                   style={{
                     backgroundColor: '#e74c3c',
@@ -95,7 +93,8 @@ export default function Layout() {
                     border: 'none',
                     padding: '0.5rem 1rem',
                     borderRadius: '4px',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    fontSize: '1rem'
                   }}
                 >
                   Logout
@@ -103,10 +102,27 @@ export default function Layout() {
               </>
             ) : (
               <>
-                <Link to="/login" style={{ color: 'white', textDecoration: 'none' }}>
+                <Link
+                  to="/login"
+                  style={{
+                    color: 'white',
+                    textDecoration: 'none',
+                    fontSize: '1rem'
+                  }}
+                >
                   Login
                 </Link>
-                <Link to="/register" style={{ color: 'white', textDecoration: 'none' }}>
+                <Link
+                  to="/register"
+                  style={{
+                    backgroundColor: '#27ae60',
+                    color: 'white',
+                    padding: '0.5rem 1rem',
+                    textDecoration: 'none',
+                    borderRadius: '4px',
+                    fontSize: '1rem'
+                  }}
+                >
                   Register
                 </Link>
               </>
@@ -115,9 +131,32 @@ export default function Layout() {
         </div>
       </nav>
 
-      <div style={{ padding: '0 2rem' }}>
-        <Outlet context={{ loggedIn, setLoggedIn, user, setUser, checkAuthStatus }} />
-      </div>
+      {/* Main Content */}
+      <main style={{
+        maxWidth: '1200px',
+        margin: '0 auto',
+        padding: '2rem'
+      }}>
+        <Outlet context={{ loggedIn, user, setLoggedIn, setUser, checkAuthStatus }} />
+      </main>
+
+      {/* Footer */}
+      <footer style={{
+        backgroundColor: '#2c3e50',
+        color: 'white',
+        textAlign: 'center',
+        padding: '2rem',
+        marginTop: '4rem'
+      }}>
+        <p style={{ margin: 0 }}>
+          © 2024 International Payments Portal. All transactions are secured with SSL/TLS encryption.
+        </p>
+        <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', color: '#95a5a6' }}>
+          🔒 Your security is our priority
+        </p>
+      </footer>
     </div>
   );
 }
+
+export default Layout;

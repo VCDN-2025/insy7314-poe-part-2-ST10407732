@@ -1,10 +1,8 @@
-// routes/paymentRoutes.js
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
 const { createPayment, getUserPayments, getPaymentById } = require('../controllers/paymentController');
 
-// All payment routes require authentication
 router.post('/', authMiddleware, createPayment);
 router.get('/', authMiddleware, getUserPayments);
 router.get('/:id', authMiddleware, getPaymentById);
