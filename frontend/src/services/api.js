@@ -1,3 +1,4 @@
+// frontend/src/services/api.js
 import axios from 'axios';
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -12,13 +13,57 @@ const api = axios.create({
   }
 });
 
-// Add request interceptor to include token
+// In-memory cache for CSRF token
+let csrfToken = null;
+let fetchingCsrfPromise = null;
+
+// Function to fetch CSRF token from server (returns token)
+export const fetchCsrfToken = async () => {
+  // If we already fetched, return it
+  if (csrfToken) return csrfToken;
+
+  // If a fetch is already in progress, reuse the promise
+  if (fetchingCsrfPromise) return fetchingCsrfPromise;
+
+  // Start fetch and store promise to prevent parallel fetches
+  fetchingCsrfPromise = api.get('/csrf-token', { withCredentials: true })
+    .then(res => {
+      csrfToken = res.data?.csrfToken;
+      fetchingCsrfPromise = null;
+      return csrfToken;
+    })
+    .catch(err => {
+      fetchingCsrfPromise = null;
+      throw err;
+    });
+
+  return fetchingCsrfPromise;
+};
+
+// Add request interceptor to include Bearer token + CSRF token for state-changing requests
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
+    // Attach Authorization header if token present
     const token = localStorage.getItem('token');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
+
+    // For unsafe methods, ensure CSRF token header is present
+    const unsafeMethods = ['post', 'put', 'patch', 'delete'];
+    if (unsafeMethods.includes((config.method || '').toLowerCase())) {
+      try {
+        const token = await fetchCsrfToken();
+        if (token) {
+          config.headers['X-CSRF-Token'] = token;
+        }
+        // else: we'll still send the request; server will reject with 403 if token missing
+      } catch (err) {
+        // If token fetch fails, let the request proceed (it will likely be rejected by server)
+        console.error('Failed to fetch CSRF token', err);
+      }
+    }
+
     return config;
   },
   (error) => {
@@ -46,12 +91,12 @@ export const registerUser = async (userData) => {
 
 export const loginUser = async (credentials) => {
   const response = await api.post('/auth/login', credentials);
-  
+
   // Store token if returned
   if (response.data.token) {
     localStorage.setItem('token', response.data.token);
   }
-  
+
   return response;
 };
 
