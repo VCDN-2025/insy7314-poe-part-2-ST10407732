@@ -1,8 +1,50 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import PaymentsList from "../components/PaymentsList";
 import { Link } from "react-router-dom";
+import { getUserPayments } from "../services/api";
 
 function PaymentsPage() {
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch payments
+  useEffect(() => {
+    const fetchPayments = async () => {
+      try {
+        const res = await getUserPayments();
+        console.log("PaymentsPage API Response:", res.data);
+        
+        // Handle different response structures
+        const paymentsData = res.data?.payments || res.data || [];
+        console.log("PaymentsPage Payments array:", paymentsData);
+        
+        setPayments(Array.isArray(paymentsData) ? paymentsData : []);
+      } catch (err) {
+        console.error("PaymentsPage Error fetching payments:", err.response?.data || err);
+        setPayments([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPayments();
+  }, []);
+
+  // Calculate stats - handle different status formats (same logic as DashboardPage)
+  const totalPayments = payments.length;
+  
+  // Check for both lowercase and capitalized status
+  const completedPayments = payments.filter(p => 
+    p.status?.toLowerCase() === 'completed' || 
+    p.status?.toLowerCase() === 'approved'
+  ).length;
+  
+  const pendingPayments = payments.filter(p => 
+    p.status?.toLowerCase() === 'pending'
+  ).length;
+
+  console.log("PaymentsPage Stats:", { totalPayments, completedPayments, pendingPayments, paymentsData: payments });
+
   return (
     <div style={{ 
       backgroundColor: '#f8f9fa', 
@@ -131,7 +173,7 @@ function PaymentsPage() {
           gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
           gap: '1.5rem'
         }}>
-          {/* Quick Stat Card 1 */}
+          {/* Total Payments Card */}
           <div style={{
             backgroundColor: 'white',
             borderRadius: '16px',
@@ -158,8 +200,16 @@ function PaymentsPage() {
                   margin: 0,
                   fontWeight: '700'
                 }}>
-                  —
+                  {loading ? '...' : totalPayments}
                 </h3>
+                <p style={{ 
+                  color: '#27ae60', 
+                  fontSize: '0.85rem',
+                  margin: '0.5rem 0 0',
+                  fontWeight: '600'
+                }}>
+                  All transactions
+                </p>
               </div>
               <div style={{
                 backgroundColor: '#d5f4e6',
@@ -172,7 +222,7 @@ function PaymentsPage() {
             </div>
           </div>
 
-          {/* Quick Stat Card 2 */}
+          {/* Successful Payments Card */}
           <div style={{
             backgroundColor: 'white',
             borderRadius: '16px',
@@ -198,8 +248,16 @@ function PaymentsPage() {
                   margin: 0,
                   fontWeight: '700'
                 }}>
-                  —
+                  {loading ? '...' : completedPayments}
                 </h3>
+                <p style={{ 
+                  color: '#3498db', 
+                  fontSize: '0.85rem',
+                  margin: '0.5rem 0 0',
+                  fontWeight: '600'
+                }}>
+                  Completed
+                </p>
               </div>
               <div style={{
                 backgroundColor: '#d6eaf8',
@@ -212,13 +270,13 @@ function PaymentsPage() {
             </div>
           </div>
 
-          {/* Quick Stat Card 3 */}
+          {/* Pending Payments Card */}
           <div style={{
             backgroundColor: 'white',
             borderRadius: '16px',
             padding: '2rem',
             boxShadow: '0 4px 15px rgba(0,0,0,0.08)',
-            borderLeft: '5px solid #e74c3c'
+            borderLeft: '5px solid #f39c12'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
@@ -238,11 +296,19 @@ function PaymentsPage() {
                   margin: 0,
                   fontWeight: '700'
                 }}>
-                  —
+                  {loading ? '...' : pendingPayments}
                 </h3>
+                <p style={{ 
+                  color: '#f39c12', 
+                  fontSize: '0.85rem',
+                  margin: '0.5rem 0 0',
+                  fontWeight: '600'
+                }}>
+                  Awaiting review
+                </p>
               </div>
               <div style={{
-                backgroundColor: '#fadbd8',
+                backgroundColor: '#fef5e7',
                 borderRadius: '12px',
                 padding: '0.75rem',
                 fontSize: '1.8rem'
@@ -382,7 +448,7 @@ function PaymentsPage() {
               borderRadius: '20px',
               fontWeight: '600'
             }}>
-              Last 30 days
+              {loading ? 'Loading...' : `${totalPayments} transactions`}
             </div>
           </div>
 
