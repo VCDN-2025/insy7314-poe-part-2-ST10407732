@@ -8,13 +8,18 @@ function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Fetch payments safely
+  // Fetch payments
   useEffect(() => {
     const fetchPayments = async () => {
       try {
         const res = await getUserPayments();
-        console.log("User payments:", res.data);
-        setPayments(res.data?.payments || []); // fallback to empty array
+        console.log("API Response:", res.data);
+        
+        // Handle different response structures
+        const paymentsData = res.data?.payments || res.data || [];
+        console.log("Payments array:", paymentsData);
+        
+        setPayments(Array.isArray(paymentsData) ? paymentsData : []);
       } catch (err) {
         console.error("Error fetching payments:", err.response?.data || err);
         setError("Failed to load payments.");
@@ -26,11 +31,22 @@ function DashboardPage() {
     fetchPayments();
   }, []);
 
-  // Calculate stats
+  // Calculate stats - handle different status formats
   const totalPayments = payments.length;
-  const completedPayments = payments.filter(p => p.status === 'Completed').length;
-  const pendingPayments = payments.filter(p => p.status === 'Pending').length;
+  
+  // Check for both lowercase and capitalized status
+  const completedPayments = payments.filter(p => 
+    p.status?.toLowerCase() === 'completed' || 
+    p.status?.toLowerCase() === 'approved'
+  ).length;
+  
+  const pendingPayments = payments.filter(p => 
+    p.status?.toLowerCase() === 'pending'
+  ).length;
+  
   const recentPayments = payments.slice(0, 5);
+
+  console.log("Stats:", { totalPayments, completedPayments, pendingPayments });
 
   return (
     <div style={{ 
@@ -198,7 +214,7 @@ function DashboardPage() {
                   margin: 0,
                   fontWeight: '700'
                 }}>
-                  {totalPayments}
+                  {loading ? '...' : totalPayments}
                 </h3>
                 <p style={{ 
                   color: '#3498db', 
@@ -246,7 +262,7 @@ function DashboardPage() {
                   margin: 0,
                   fontWeight: '700'
                 }}>
-                  {completedPayments}
+                  {loading ? '...' : completedPayments}
                 </h3>
                 <p style={{ 
                   color: '#27ae60', 
@@ -294,7 +310,7 @@ function DashboardPage() {
                   margin: 0,
                   fontWeight: '700'
                 }}>
-                  {pendingPayments}
+                  {loading ? '...' : pendingPayments}
                 </h3>
                 <p style={{ 
                   color: '#f39c12', 
@@ -352,6 +368,16 @@ function DashboardPage() {
               display: 'block',
               position: 'relative',
               overflow: 'hidden'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-5px)';
+              e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.12)';
+              e.currentTarget.style.borderColor = '#27ae60';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.08)';
+              e.currentTarget.style.borderColor = 'transparent';
             }}
           >
             <div style={{
@@ -415,6 +441,16 @@ function DashboardPage() {
               display: 'block',
               position: 'relative',
               overflow: 'hidden'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-5px)';
+              e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.12)';
+              e.currentTarget.style.borderColor = '#3498db';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.08)';
+              e.currentTarget.style.borderColor = 'transparent';
             }}
           >
             <div style={{
@@ -605,41 +641,46 @@ function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentPayments.map((p, index) => (
-                    <tr key={p._id} style={{ 
-                      borderBottom: index !== recentPayments.length - 1 ? '1px solid #f0f0f0' : 'none',
-                      transition: 'background-color 0.2s'
-                    }}>
-                      <td style={{ 
-                        padding: '1rem',
-                        fontWeight: '700',
-                        color: '#2c3e50'
+                  {recentPayments.map((p, index) => {
+                    const status = p.status?.toLowerCase() || 'pending';
+                    const isCompleted = status === 'completed' || status === 'approved';
+                    
+                    return (
+                      <tr key={p._id || index} style={{ 
+                        borderBottom: index !== recentPayments.length - 1 ? '1px solid #f0f0f0' : 'none'
                       }}>
-                        {p.amount}
-                      </td>
-                      <td style={{ padding: '1rem', color: '#7f8c8d' }}>
-                        {p.currency}
-                      </td>
-                      <td style={{ padding: '1rem', color: '#7f8c8d' }}>
-                        {p.provider}
-                      </td>
-                      <td style={{ padding: '1rem' }}>
-                        <span style={{
-                          padding: '0.4rem 1rem',
-                          borderRadius: '20px',
-                          fontSize: '0.85rem',
-                          fontWeight: '600',
-                          backgroundColor: p.status === 'Completed' ? '#d5f4e6' : '#fef5e7',
-                          color: p.status === 'Completed' ? '#27ae60' : '#f39c12'
+                        <td style={{ 
+                          padding: '1rem',
+                          fontWeight: '700',
+                          color: '#2c3e50'
                         }}>
-                          {p.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '1rem', color: '#7f8c8d' }}>
-                        {new Date(p.createdAt).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
+                          {p.currency} {p.amount}
+                        </td>
+                        <td style={{ padding: '1rem', color: '#7f8c8d' }}>
+                          {p.currency}
+                        </td>
+                        <td style={{ padding: '1rem', color: '#7f8c8d' }}>
+                          {p.provider || 'SWIFT'}
+                        </td>
+                        <td style={{ padding: '1rem' }}>
+                          <span style={{
+                            padding: '0.4rem 1rem',
+                            borderRadius: '20px',
+                            fontSize: '0.85rem',
+                            fontWeight: '600',
+                            backgroundColor: isCompleted ? '#d5f4e6' : '#fef5e7',
+                            color: isCompleted ? '#27ae60' : '#f39c12',
+                            textTransform: 'capitalize'
+                          }}>
+                            {p.status || 'Pending'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '1rem', color: '#7f8c8d' }}>
+                          {new Date(p.createdAt).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

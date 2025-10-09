@@ -442,7 +442,7 @@ function HomePage() {
         marginTop: '4rem'
       }}>
         <p style={{ margin: '0.5rem 0', opacity: '0.9' }}>
-          © 2024 Payments Portal. All rights reserved.
+          © 2025 Payments Portal. All rights reserved.
         </p>
         <p style={{ margin: '0.5rem 0', fontSize: '0.9rem', opacity: '0.8' }}>
           Secure • Reliable • Global

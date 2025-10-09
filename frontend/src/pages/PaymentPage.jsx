@@ -11,6 +11,7 @@ function PaymentPage() {
     currency: "USD",
     provider: "SWIFT",
     payeeAccount: "",
+    payeeName: "",
     swiftCode: ""
   });
   
@@ -46,6 +47,10 @@ function PaymentPage() {
       // Only allow uppercase letters and numbers, max 11
       sanitizedValue = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (sanitizedValue.length > 11) return;
+    } else if (name === 'payeeName') {
+      // Only allow letters, spaces, and common name characters
+      sanitizedValue = value.replace(/[^A-Za-z ,.'-]/g, '');
+      if (sanitizedValue.length > 100) return;
     } else if (name === 'currency') {
       sanitizedValue = value.toUpperCase();
     }
@@ -54,7 +59,7 @@ function PaymentPage() {
   };
 
   const validateForm = () => {
-    const { amount, currency, payeeAccount, swiftCode } = form;
+    const { amount, currency, payeeAccount, payeeName, swiftCode } = form;
     
     // Amount validation
     const amountNum = parseFloat(amount);
@@ -63,14 +68,20 @@ function PaymentPage() {
       return false;
     }
     
-    if (amountNum > 1000000000) {
-      setError("Amount exceeds maximum limit of 1,000,000,000");
+    if (amountNum > 1000000) {
+      setError("Amount exceeds maximum limit of 1,000,000");
       return false;
     }
     
     // Currency validation (3 uppercase letters)
     if (!/^[A-Z]{3}$/.test(currency)) {
       setError("Invalid currency code");
+      return false;
+    }
+    
+    // Payee name validation
+    if (!payeeName || payeeName.length < 2) {
+      setError("Payee name must be at least 2 characters");
       return false;
     }
     
@@ -81,9 +92,8 @@ function PaymentPage() {
     }
     
     // SWIFT code validation (8-11 characters)
-    const swiftPattern = /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/;
-    if (!swiftPattern.test(swiftCode)) {
-      setError("SWIFT code must be 8 or 11 characters (e.g., ABCDZAJJ)");
+    if (!/^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(swiftCode)) {
+      setError("SWIFT code must be 8 or 11 characters (format: AAAABBCCXXX)");
       return false;
     }
     
@@ -110,19 +120,25 @@ function PaymentPage() {
         swiftCode: form.swiftCode
       };
       
-      console.log("Submitting payment:", paymentData);
-      
       const response = await createPayment(paymentData);
       
       setSuccess("Payment successfully created! Payment ID: " + response.data.paymentId);
       setError("");
       
-      // Redirect to payments page after 2 seconds
+      // Reset form after successful payment
       setTimeout(() => {
-        navigate("/payments");
-      }, 2000);
+        setForm({
+          amount: "",
+          currency: "USD",
+          provider: "SWIFT",
+          payeeAccount: "",
+          payeeName: "",
+          swiftCode: ""
+        });
+        setSuccess("");
+        navigate("/dashboard");
+      }, 3000);
     } catch (err) {
-      console.error("Payment error:", err);
       setError(err.response?.data?.error || "Payment failed. Please try again.");
       setSuccess("");
     } finally {
@@ -131,29 +147,48 @@ function PaymentPage() {
   };
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
+    <div style={{ 
+      backgroundColor: '#f8f9fa', 
+      minHeight: '100vh', 
+      marginTop: '-2rem', 
+      marginLeft: '-2rem', 
+      marginRight: '-2rem',
+      paddingBottom: '4rem'
+    }}>
+      {/* Hero Header */}
       <div style={{
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        padding: '2rem',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+        background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+        color: 'white',
+        padding: '3rem 2rem',
+        marginBottom: '3rem'
       }}>
-        <h1 style={{ 
-          color: '#2c3e50', 
-          marginBottom: '0.5rem',
-          fontSize: '2rem'
+        <div style={{ maxWidth: '1200px', margin: '0 auto', textAlign: 'center' }}>
+          <h1 style={{ 
+            fontSize: '2.5rem', 
+            marginBottom: '1rem',
+            fontWeight: '700',
+            letterSpacing: '-0.5px'
+          }}>
+            Make International Payment
+          </h1>
+          
+          <p style={{ 
+            fontSize: '1.1rem', 
+            opacity: '0.95'
+          }}>
+            Account: <strong>{user?.accountNumber}</strong> | Name: <strong>{user?.fullName}</strong>
+          </p>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 2rem' }}>
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '12px',
+          padding: '3rem',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
         }}>
-          International Payment Portal
-        </h1>
-        
-        <p style={{ 
-          color: '#7f8c8d',
-          marginBottom: '2rem',
-          fontSize: '0.95rem'
-        }}>
-          Account: <strong>{user?.accountNumber}</strong> | 
-          Name: <strong>{user?.fullName}</strong>
-        </p>
 
         <form onSubmit={handleSubmit}>
           {/* Amount */}
@@ -179,8 +214,7 @@ function PaymentPage() {
                 border: '2px solid #3498db',
                 borderRadius: '4px',
                 fontSize: '1.1rem',
-                fontWeight: 'bold',
-                boxSizing: 'border-box'
+                fontWeight: 'bold'
               }}
               placeholder="0.00"
             />
@@ -211,9 +245,7 @@ function PaymentPage() {
                 border: '1px solid #ddd',
                 borderRadius: '4px',
                 fontSize: '1rem',
-                cursor: 'pointer',
-                boxSizing: 'border-box',
-                backgroundColor: 'white'
+                cursor: 'pointer'
               }}
             >
               {currencies.map(curr => (
@@ -247,9 +279,7 @@ function PaymentPage() {
                 border: '1px solid #ddd',
                 borderRadius: '4px',
                 fontSize: '1rem',
-                cursor: 'pointer',
-                boxSizing: 'border-box',
-                backgroundColor: 'white'
+                cursor: 'pointer'
               }}
             >
               <option value="SWIFT">SWIFT</option>
@@ -270,8 +300,36 @@ function PaymentPage() {
               marginBottom: '1rem',
               fontSize: '1.2rem'
             }}>
-              Account Information
+              Payee Information
             </h3>
+
+            {/* Payee Name */}
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '0.5rem', 
+                fontWeight: 'bold',
+                color: '#2c3e50'
+              }}>
+                Payee Name: *
+              </label>
+              <input 
+                name="payeeName" 
+                type="text"
+                value={form.payeeName} 
+                onChange={handleChange}
+                required 
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '1rem'
+                }}
+                placeholder="Recipient's full name"
+              />
+            </div>
 
             {/* Payee Account */}
             <div style={{ marginBottom: '1rem' }}>
@@ -295,15 +353,11 @@ function PaymentPage() {
                   padding: '0.75rem',
                   border: '1px solid #ddd',
                   borderRadius: '4px',
-                  fontSize: '1rem',
-                  boxSizing: 'border-box'
+                  fontSize: '1rem'
                 }}
                 placeholder="6-20 digit account number"
                 maxLength="20"
               />
-              <small style={{ color: '#7f8c8d', fontSize: '0.85rem' }}>
-                Must be 6-20 digits only
-              </small>
             </div>
 
             {/* SWIFT Code */}
@@ -329,14 +383,13 @@ function PaymentPage() {
                   border: '1px solid #ddd',
                   borderRadius: '4px',
                   fontSize: '1rem',
-                  textTransform: 'uppercase',
-                  boxSizing: 'border-box'
+                  textTransform: 'uppercase'
                 }}
-                placeholder="8-11 character SWIFT code"
+                placeholder="8 or 11 character SWIFT code"
                 maxLength="11"
               />
               <small style={{ color: '#7f8c8d', fontSize: '0.85rem' }}>
-                Example: ABCDZAJJ or ABCDZAJJXXX
+                Format: AAAABBCCXXX (e.g., ABCDZAJJXXX)
               </small>
             </div>
           </div>
@@ -362,7 +415,7 @@ function PaymentPage() {
             style={{
               width: '100%',
               padding: '1rem',
-              backgroundColor: loading ? '#95a5a6' : '#27ae60',
+              backgroundColor: loading ? '#95a5a6' : '#e67e22',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
@@ -378,53 +431,134 @@ function PaymentPage() {
           {/* Error Message */}
           {error && (
             <div style={{ 
-              color: '#e74c3c', 
-              marginTop: '1rem',
-              backgroundColor: '#fadbd8',
-              padding: '1rem',
-              borderRadius: '6px',
-              border: '1px solid #e74c3c'
+              color: '#721c24', 
+              marginTop: '1.5rem',
+              backgroundColor: '#f8d7da',
+              padding: '1.25rem',
+              borderRadius: '8px',
+              border: '2px solid #f5c6cb',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.75rem'
             }}>
-              <strong>❌ Error:</strong> {error}
+              <span style={{ fontSize: '1.5rem' }}>❌</span>
+              <div>
+                <strong style={{ display: 'block', marginBottom: '0.25rem' }}>Error</strong>
+                {error}
+              </div>
             </div>
           )}
 
           {/* Success Message */}
           {success && (
             <div style={{ 
-              color: '#27ae60', 
-              marginTop: '1rem',
-              backgroundColor: '#d5f4e6',
-              padding: '1rem',
-              borderRadius: '6px',
-              border: '1px solid #27ae60'
+              color: '#155724', 
+              marginTop: '1.5rem',
+              backgroundColor: '#d4edda',
+              padding: '1.25rem',
+              borderRadius: '8px',
+              border: '2px solid #c3e6cb',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.75rem'
             }}>
-              <strong>✓ Success:</strong> {success}
+              <span style={{ fontSize: '1.5rem' }}>✓</span>
+              <div>
+                <strong style={{ display: 'block', marginBottom: '0.25rem' }}>Success!</strong>
+                {success}
+              </div>
             </div>
           )}
         </form>
       </div>
 
-      {/* Additional Information */}
+      {/* Information Card */}
       <div style={{
         backgroundColor: 'white',
-        borderRadius: '8px',
-        padding: '1.5rem',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        borderRadius: '12px',
+        padding: '2.5rem',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
         marginTop: '2rem'
       }}>
-        <h3 style={{ color: '#2c3e50', marginBottom: '1rem' }}>
-          Payment Information
+        <h3 style={{ 
+          color: '#1e3c72', 
+          marginBottom: '1.5rem',
+          fontSize: '1.6rem',
+          fontWeight: '600',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          <span>ℹ️</span> Payment Information
         </h3>
-        <ul style={{ color: '#7f8c8d', lineHeight: '1.8' }}>
-          <li>All international payments are processed via SWIFT network</li>
-          <li>Transaction processing time: 1-3 business days</li>
-          <li>All inputs are validated and sanitized for security</li>
-          <li>SSL encryption protects all data transmission</li>
-          <li>Payment confirmation will be sent to your registered email</li>
-        </ul>
+        
+        <div style={{ 
+          display: 'grid',
+          gap: '1rem'
+        }}>
+          <div style={{
+            padding: '1.25rem',
+            backgroundColor: '#f8f9fa',
+            borderRadius: '8px',
+            borderLeft: '4px solid #1e3c72'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <span style={{ fontSize: '1.2rem' }}>🌐</span>
+              <strong style={{ color: '#1e3c72' }}>SWIFT Network</strong>
+            </div>
+            <p style={{ color: '#6c757d', margin: 0, lineHeight: '1.6' }}>
+              All international payments are processed via the secure SWIFT network
+            </p>
+          </div>
+          
+          <div style={{
+            padding: '1.25rem',
+            backgroundColor: '#f8f9fa',
+            borderRadius: '8px',
+            borderLeft: '4px solid #1e3c72'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <span style={{ fontSize: '1.2rem' }}>⏱️</span>
+              <strong style={{ color: '#1e3c72' }}>Processing Time</strong>
+            </div>
+            <p style={{ color: '#6c757d', margin: 0, lineHeight: '1.6' }}>
+              Transactions typically complete within 1-3 business days
+            </p>
+          </div>
+          
+          <div style={{
+            padding: '1.25rem',
+            backgroundColor: '#f8f9fa',
+            borderRadius: '8px',
+            borderLeft: '4px solid #1e3c72'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <span style={{ fontSize: '1.2rem' }}>🔒</span>
+              <strong style={{ color: '#1e3c72' }}>Secure & Encrypted</strong>
+            </div>
+            <p style={{ color: '#6c757d', margin: 0, lineHeight: '1.6' }}>
+              All data protected by SSL/TLS encryption and validated with RegEx patterns
+            </p>
+          </div>
+          
+          <div style={{
+            padding: '1.25rem',
+            backgroundColor: '#f8f9fa',
+            borderRadius: '8px',
+            borderLeft: '4px solid #1e3c72'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <span style={{ fontSize: '1.2rem' }}>📧</span>
+              <strong style={{ color: '#1e3c72' }}>Confirmation</strong>
+            </div>
+            <p style={{ color: '#6c757d', margin: 0, lineHeight: '1.6' }}>
+              Payment confirmation will be sent to your registered email address
+            </p>
+          </div>
+        </div>
       </div>
     </div>
+  </div>
   );
 }
 
