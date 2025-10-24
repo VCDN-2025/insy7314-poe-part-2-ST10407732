@@ -1,54 +1,38 @@
+// Backend/middleware/authMiddleware.js
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// Middleware to verify JWT token
 const authMiddleware = async (req, res, next) => {
   try {
-    // Get token from header or cookie
-    let token = null;
-    
-    // Check Authorization header first
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
-    
-    // Fallback to cookie
-    if (!token && req.cookies.token) {
-      token = req.cookies.token;
-    }
-    
+    // Get token from cookie or Authorization header
+    const token = req.cookies.token || 
+                  (req.headers.authorization && req.headers.authorization.split(' ')[1]);
+
     if (!token) {
-      return res.status(401).json({ error: 'No authentication token provided. Please login.' });
+      return res.status(401).json({ error: 'Authentication required.' });
     }
-    
+
     // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret_key_change_this');
     
-    // Get user from database (exclude password)
+    // Get user from database
     const user = await User.findById(decoded.id).select('-passwordHash');
     
     if (!user) {
-      return res.status(401).json({ error: 'User not found. Please login again.' });
+      return res.status(401).json({ error: 'User not found.' });
     }
-    
+
     if (!user.isActive) {
-      return res.status(403).json({ error: 'Account is inactive. Please contact support.' });
+      return res.status(403).json({ error: 'Account deactivated.' });
     }
-    
-    // Attach user to request object
+
+    // Attach user to request
     req.user = user;
     next();
+
   } catch (err) {
-    if (err.name === 'TokenExpiredError') {
-      return res.status(401).json({ error: 'Token expired. Please login again.' });
-    }
-    
-    if (err.name === 'JsonWebTokenError') {
-      return res.status(401).json({ error: 'Invalid token. Please login again.' });
-    }
-    
-    console.error('Authentication error:', err);
-    return res.status(500).json({ error: 'Authentication failed.' });
+    console.error('Auth middleware error:', err);
+    return res.status(401).json({ error: 'Invalid or expired token.' });
   }
 };
 

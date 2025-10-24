@@ -1,13 +1,17 @@
-// frontend/src/services/api.js
+// Frontend/src/services/api.js
 import axios from 'axios';
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+// Disable SSL verification for development (remove in production)
+if (process.env.NODE_ENV === 'development') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
 
 const API_URL = process.env.REACT_APP_API_URL || 'https://localhost:5000/api';
 
 // Create axios instance with default config
 const api = axios.create({
   baseURL: API_URL,
-  withCredentials: true, // Send cookies with requests
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
   }
@@ -17,15 +21,11 @@ const api = axios.create({
 let csrfToken = null;
 let fetchingCsrfPromise = null;
 
-// Function to fetch CSRF token from server (returns token)
+// Function to fetch CSRF token from server
 export const fetchCsrfToken = async () => {
-  // If we already fetched, return it
   if (csrfToken) return csrfToken;
-
-  // If a fetch is already in progress, reuse the promise
   if (fetchingCsrfPromise) return fetchingCsrfPromise;
 
-  // Start fetch and store promise to prevent parallel fetches
   fetchingCsrfPromise = api.get('/csrf-token', { withCredentials: true })
     .then(res => {
       csrfToken = res.data?.csrfToken;
@@ -34,22 +34,23 @@ export const fetchCsrfToken = async () => {
     })
     .catch(err => {
       fetchingCsrfPromise = null;
+      console.error('CSRF token fetch failed:', err);
       throw err;
     });
 
   return fetchingCsrfPromise;
 };
 
-// Add request interceptor to include Bearer token + CSRF token for state-changing requests
+// Request interceptor
 api.interceptors.request.use(
   async (config) => {
-    // Attach Authorization header if token present
+    // Add Authorization header
     const token = localStorage.getItem('token');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
 
-    // For unsafe methods, ensure CSRF token header is present
+    // Add CSRF token for state-changing requests
     const unsafeMethods = ['post', 'put', 'patch', 'delete'];
     if (unsafeMethods.includes((config.method || '').toLowerCase())) {
       try {
@@ -57,9 +58,7 @@ api.interceptors.request.use(
         if (token) {
           config.headers['X-CSRF-Token'] = token;
         }
-        // else: we'll still send the request; server will reject with 403 if token missing
       } catch (err) {
-        // If token fetch fails, let the request proceed (it will likely be rejected by server)
         console.error('Failed to fetch CSRF token', err);
       }
     }
@@ -71,72 +70,118 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor for error handling
+// Response interceptor
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Unauthorized - clear token and redirect to login
       localStorage.removeItem('token');
+      localStorage.removeItem('user');
       window.location.href = '/login';
     }
     return Promise.reject(error);
   }
 );
 
-// Authentication APIs
-export const registerUser = async (userData) => {
+// ============================================
+// AUTHENTICATION APIs
+// ============================================
+
+export const register = async (userData) => {
   return api.post('/auth/register', userData);
 };
 
-export const loginUser = async (credentials) => {
+export const login = async (credentials) => {
   const response = await api.post('/auth/login', credentials);
-
-  // Store token if returned
   if (response.data.token) {
     localStorage.setItem('token', response.data.token);
   }
-
   return response;
 };
 
-export const logoutUser = async () => {
+export const logout = async () => {
   try {
     await api.post('/auth/logout');
   } finally {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
   }
 };
 
-export const checkAuth = async () => {
-  return api.get('/auth/verify');
+export const getProtected = async () => {
+  return api.get('/protected');
 };
 
-// Payment APIs
+// ============================================
+// EMPLOYEE MANAGEMENT APIs (Admin Only)
+// ============================================
+
+export const createEmployee = async (employeeData) => {
+  return api.post('/employees', employeeData);
+};
+
+export const listEmployees = async () => {
+  return api.get('/employees');
+};
+
+export const getEmployee = async (id) => {
+  return api.get(`/employees/${id}`);
+};
+
+export const updateEmployee = async (id, data) => {
+  return api.put(`/employees/${id}`, data);
+};
+
+export const deleteEmployee = async (id) => {
+  return api.delete(`/employees/${id}`);
+};
+
+// ============================================
+// PAYMENT APIs
+// ============================================
+
+// Customer: Create payment
 export const createPayment = async (paymentData) => {
   return api.post('/payments', paymentData);
 };
 
+// Customer: Get own payments
 export const getUserPayments = async () => {
   return api.get('/payments');
 };
 
+// Get single payment by ID
 export const getPaymentById = async (paymentId) => {
   return api.get(`/payments/${paymentId}`);
 };
 
-// Employee/Admin APIs (for staff portal)
+// Admin/Employee: Get all payments
 export const getAllPayments = async () => {
   return api.get('/payments/all');
 };
 
-export const verifyPayment = async (paymentId, status) => {
-  return api.put(`/payments/${paymentId}/verify`, { status });
+// Employee: Get pending payments
+export const getPendingPayments = async () => {
+  return api.get('/payments/pending/all');
 };
 
-// Protected route test (optional)
-export const getProtected = async () => {
-  return api.get('/protected');
+// Employee: Verify payment
+export const verifyPayment = async (paymentId) => {
+  return api.patch(`/payments/${paymentId}/verify`);
 };
+
+// Employee: Complete payment (submit to SWIFT)
+export const completePayment = async (paymentId) => {
+  return api.patch(`/payments/${paymentId}/complete`);
+};
+
+// ============================================
+// LEGACY ALIASES (for backward compatibility)
+// ============================================
+
+export const registerUser = register;
+export const loginUser = login;
+export const logoutUser = logout;
+export const checkAuth = getProtected;
 
 export default api;

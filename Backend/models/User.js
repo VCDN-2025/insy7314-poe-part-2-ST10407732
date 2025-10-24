@@ -1,3 +1,4 @@
+// Backend/models/User.js
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
@@ -5,31 +6,23 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true,
-    maxlength: 100,
-    match: /^[A-Za-z ,.'-]{2,100}$/
+    maxlength: 100
   },
   email: {
     type: String,
     trim: true,
     lowercase: true,
-    validate: {
-      validator: function(v) {
-        return !v || /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(v);
-      },
-      message: 'Please enter a valid email'
-    }
+    sparse: true // Allows multiple null values but unique non-null
   },
   idNumber: {
     type: String,
     required: true,
-    unique: true,  // This already creates an index
-    match: /^\d{13}$/
+    unique: true
   },
   accountNumber: {
     type: String,
     required: true,
-    unique: true,  // This already creates an index
-    match: /^\d{6,20}$/
+    unique: true
   },
   passwordHash: {
     type: String,
@@ -61,9 +54,5 @@ const userSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
-
-// Remove the duplicate index definitions since unique: true already creates them
-// userSchema.index({ accountNumber: 1 });  // REMOVED - duplicate
-// userSchema.index({ idNumber: 1 });       // REMOVED - duplicate
 
 module.exports = mongoose.model('User', userSchema);

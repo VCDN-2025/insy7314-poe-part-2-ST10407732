@@ -8,13 +8,10 @@ const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const rateLimit = require('express-rate-limit');
 
-// ---------- BRUTE/CSRF IMPORTS ----------
-const ExpressBrute = require('express-brute');
-const csrf = require('csurf');
-// ------------------------------------------
-
+// Import routes
 const authRoutes = require('./routes/authRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const employeeRoutes = require('./routes/employeeRoutes');
 const authMiddleware = require('./middleware/authMiddleware');
 
 const app = express();
@@ -25,10 +22,10 @@ app.use(mongoSanitize());
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'https://localhost:3000',
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Body parser
@@ -46,48 +43,26 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// ---------- EXPRESS-BRUTE (safe dev setup) ----------
-try {
-  const MemoryStore = ExpressBrute.MemoryStore || require('express-brute').MemoryStore;
-  const bruteStore = new MemoryStore();
-
-  const bruteforce = new ExpressBrute(bruteStore, {
-    freeRetries: 5,
-    minWait: 5 * 60 * 1000, // 5 minutes
-    maxWait: 60 * 60 * 1000, // 1 hour
-    lifetime: 24 * 60 * 60, // 1 day (seconds)
-  });
-
-  app.use('/api/auth/login', bruteforce.prevent);
-
-  console.log('[express-brute] Using in-memory store (development).');
-} catch (err) {
-  console.error('[express-brute] Failed to initialize memory store:', err);
-}
-// ------------------------------------------------------------------
-
-// Root route – only show Payments API running
+// Root route
 app.get('/', (req, res) => {
-  res.send('Payments API running');
+  res.json({ 
+    message: 'Bank Portal API',
+    version: '1.0.0',
+    status: 'running'
+  });
 });
 
-// Health check endpoint
+// Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' });
 });
 
-// ---------- CSRF protection ----------
-const csrfProtection = csrf({ cookie: true });
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/employees', employeeRoutes);
 
-app.get('/api/csrf-token', csrfProtection, (req, res) => {
-  res.json({ csrfToken: req.csrfToken() });
-});
-
-// Auth and payment routes with CSRF
-app.use('/api/auth', csrfProtection, authRoutes);
-app.use('/api/payments', csrfProtection, paymentRoutes);
-
-// Protected route for testing auth
+// Protected route for testing
 app.get('/api/protected', authMiddleware, (req, res) => {
   res.json({
     message: 'Access granted',
@@ -96,18 +71,9 @@ app.get('/api/protected', authMiddleware, (req, res) => {
       fullName: req.user.fullName,
       email: req.user.email,
       accountNumber: req.user.accountNumber,
-      idNumber: req.user.idNumber,
       role: req.user.role
     }
   });
-});
-
-// CSRF error handler
-app.use((err, req, res, next) => {
-  if (err && err.code === 'EBADCSRFTOKEN') {
-    return res.status(403).json({ error: 'Invalid CSRF token' });
-  }
-  next(err);
 });
 
 // 404 handler

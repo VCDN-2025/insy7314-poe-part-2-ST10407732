@@ -1,128 +1,134 @@
-// controllers/authController.js
+// Backend/controllers/authController.js
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const validator = require('validator');
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
-// --------------------------
-// Robustly require User model
-// --------------------------
-let User;
-const possibleModelPaths = [
-  '../models/User',    // normal if controller is in controllers/
-  '../../models/User', // if nested deeper
-  './models/User',     // same folder (unlikely)
-  'models/User'        // fallback
-];
-
-for (const p of possibleModelPaths) {
-  try {
-    User = require(p);
-    if (User) {
-      console.log(`[authController] Loaded User model from "${p}"`);
-      break;
-    }
-  } catch (err) {
-    // silent - helpful debug below if nothing worked
-  }
-}
-
-if (!User) {
-  console.error('[authController] ERROR: Could not load User model. Checked paths:', possibleModelPaths);
-  console.error('[authController] Make sure models/User.js exists and uses "module.exports = mongoose.model(\'User\', userSchema)"');
-  // Throw so server fails fast and you can see the issue in logs.
-  throw new Error('User model not loaded in authController. See server logs.');
-}
-// --------------------------
-
-/* RegEx patterns for input validation (whitelisting) */
+// Validation patterns
 const namePattern = /^[A-Za-z ,.'-]{2,100}$/;
 const idPattern = /^\d{13}$/;
 const accountPattern = /^\d{6,20}$/;
 const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,128}$/;
 
-/* Create JWT token helper */
+// Create JWT token
 const createToken = (user) => {
-  const secret = process.env.JWT_SECRET || 'dev_jwt_secret';
-  return jwt.sign({ id: user._id, role: user.role }, secret, { expiresIn: '30m' });
+  return jwt.sign(
+    { 
+      id: user._id, 
+      role: user.role,
+      accountNumber: user.accountNumber 
+    },
+    process.env.JWT_SECRET || 'your_jwt_secret_key_change_this',
+    { expiresIn: '24h' }
+  );
 };
 
+// REGISTER (Customers only)
 exports.register = async (req, res) => {
   try {
-    const { fullName, email, idNumber, accountNumber, password } = req.body;
+    const { fullName, idNumber, accountNumber, password } = req.body;
 
-    // Basic required fields check
+    // Validate all fields present
     if (!fullName || !idNumber || !accountNumber || !password) {
-      return res.status(400).json({ error: 'Missing required fields.' });
+      return res.status(400).json({ error: 'All fields are required.' });
     }
 
-    // Validate patterns
+    // Validate formats
     if (!namePattern.test(fullName)) {
       return res.status(400).json({ error: 'Invalid full name format.' });
     }
     if (!idPattern.test(idNumber)) {
-      return res.status(400).json({ error: 'Invalid ID number format.' });
+      return res.status(400).json({ error: 'ID number must be 13 digits.' });
     }
     if (!accountPattern.test(accountNumber)) {
       return res.status(400).json({ error: 'Invalid account number format.' });
     }
     if (!passwordPattern.test(password)) {
-      return res.status(400).json({
-        error: 'Password must be 8-128 characters with uppercase, lowercase, number, and special character.'
+      return res.status(400).json({ 
+        error: 'Password must be 8-128 characters with uppercase, lowercase, number, and special character.' 
       });
     }
-    if (email && !validator.isEmail(email)) {
-      return res.status(400).json({ error: 'Invalid email format.' });
-    }
 
-    // Check for existing user (by accountNumber or idNumber)
-    const existing = await User.findOne({
-      $or: [{ accountNumber }, { idNumber }]
+    // Check if user exists
+    const existingUser = await User.findOne({
+      $or: [{ idNumber }, { accountNumber }]
     });
-    if (existing) {
-      return res.status(409).json({ error: 'Account number or ID number already registered.' });
+
+    if (existingUser) {
+      return res.status(409).json({ error: 'User already exists with this ID or account number.' });
     }
 
-    // Hash the password
+    // Hash password
     const salt = await bcrypt.genSalt(12);
-    const hash = await bcrypt.hash(password, salt);
+    const passwordHash = await bcrypt.hash(password, salt);
 
+    // Create user
     const user = new User({
       fullName: validator.escape(fullName),
-      email: email ? validator.normalizeEmail(email) : undefined,
       idNumber,
       accountNumber,
-      passwordHash: hash,
+      passwordHash,
       role: 'customer'
     });
 
     await user.save();
 
-    return res.status(201).json({ message: 'User registered successfully.' });
+    return res.status(201).json({ 
+      message: 'Registration successful. Please log in.',
+      userId: user._id 
+    });
+
   } catch (err) {
-    console.error('Register error:', err);
+    console.error('Registration error:', err);
     return res.status(500).json({ error: 'Internal server error.' });
   }
 };
 
+// LOGIN (All users)
 exports.login = async (req, res) => {
   try {
-    const { accountNumber, password } = req.body;
+    const { accountNumber, email, password } = req.body;
 
-    if (!accountNumber || !password) {
+    console.log('🔐 Login attempt:', { 
+      accountNumber: accountNumber || 'N/A', 
+      email: email || 'N/A',
+      hasPassword: !!password 
+    });
+
+    // Validate input
+    if ((!accountNumber && !email) || !password) {
       return res.status(400).json({ error: 'Missing credentials.' });
     }
 
-    if (!accountPattern.test(accountNumber)) {
-      return res.status(400).json({ error: 'Invalid account number format.' });
+    let user;
+
+    // Customer login (account number)
+    if (accountNumber) {
+      if (!accountPattern.test(accountNumber)) {
+        return res.status(400).json({ error: 'Invalid account number format.' });
+      }
+      user = await User.findOne({ accountNumber });
+      console.log('👤 Customer lookup:', user ? `Found: ${user.fullName}` : 'Not found');
+    } 
+    // Admin/Employee login (email)
+    else if (email) {
+      if (!validator.isEmail(email)) {
+        return res.status(400).json({ error: 'Invalid email format.' });
+      }
+      user = await User.findOne({ email: email.toLowerCase() });
+      console.log('👔 Admin/Employee lookup:', user ? `Found: ${user.fullName} (${user.role})` : 'Not found');
     }
 
-    // Attempt to find user
-    const user = await User.findOne({ accountNumber });
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
 
-    // If account locked
+    // Check if account is active
+    if (!user.isActive) {
+      return res.status(403).json({ error: 'Account has been deactivated.' });
+    }
+
+    // Check account lock
     if (user.lockUntil && user.lockUntil > Date.now()) {
       const remainingTime = Math.ceil((user.lockUntil - Date.now()) / 1000 / 60);
       return res.status(423).json({
@@ -130,7 +136,10 @@ exports.login = async (req, res) => {
       });
     }
 
+    // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    console.log('🔑 Password valid:', isPasswordValid);
+
     if (!isPasswordValid) {
       user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
       if (user.failedLoginAttempts >= 5) {
@@ -147,17 +156,21 @@ exports.login = async (req, res) => {
     user.lastLogin = new Date();
     await user.save();
 
+    // Generate token
     const token = createToken(user);
 
+    // Set cookie
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 30 * 60 * 1000,
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
       path: '/'
     };
 
     res.cookie('token', token, cookieOptions);
+
+    console.log('✅ Login successful:', user.email || user.accountNumber, `(${user.role})`);
 
     return res.json({
       message: 'Login successful.',
@@ -166,21 +179,24 @@ exports.login = async (req, res) => {
         id: user._id,
         fullName: user.fullName,
         email: user.email,
-        accountNumber: user.accountNumber
+        accountNumber: user.accountNumber,
+        role: user.role
       }
     });
+
   } catch (err) {
-    console.error('Login error:', err);
+    console.error('❌ Login error:', err);
     return res.status(500).json({ error: 'Internal server error.' });
   }
 };
 
-exports.logout = (req, res) => {
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    path: '/'
-  });
-  res.json({ message: 'Logged out successfully.' });
+// LOGOUT
+exports.logout = async (req, res) => {
+  try {
+    res.clearCookie('token', { path: '/' });
+    return res.json({ message: 'Logout successful.' });
+  } catch (err) {
+    console.error('Logout error:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
 };
